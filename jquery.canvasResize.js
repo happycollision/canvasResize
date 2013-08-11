@@ -221,9 +221,8 @@
             var $this = this;
             var file = this.file;
 
-            var reader = new FileReader();
-            reader.onloadend = function(e) {
-                var dataURL = e.target.result;
+            var resize = function(dataURL){
+
                 var img = new Image();
                 img.onload = function(e) {
                     // Read Orientation Data in EXIF
@@ -298,13 +297,22 @@
                 };
                 img.src = dataURL;
                 // =====================================================
-            };
-            reader.readAsDataURL(file);
 
+            }
+
+            if(typeof file === 'string'){
+                resize(file);
+            } else{
+                var reader = new FileReader();
+                reader.onloadend = function(e) {
+                    resize(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
         }
     };
     $[pluginName] = function(file, options) {
-        if (typeof file === 'string')
+        if (typeof file === 'string' && file.indexOf('data:') === -1)
             return methods[file](options);
         else
             new Plugin(file, options);

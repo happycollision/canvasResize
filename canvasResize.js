@@ -246,10 +246,8 @@
             var $this = this;
             var file = this.file;
 
-            var reader = new FileReader();
-            reader.onloadend = function(e) {
+            var resize = function(dataURL){
 
-                var dataURL = e.target.result;
                 var byteString = atob(dataURL.split(',')[1]);
                 var binary = new BinaryFile(byteString, 0, byteString.length);
                 var exif = EXIF.readFromBinaryFile(binary);
@@ -327,14 +325,24 @@
                 img.src = dataURL;
                 // =====================================================
 
-            };
-            reader.readAsDataURL(file);
-            //reader.readAsBinaryString(file);
+            }
+
+
+            if(typeof file === 'string'){
+                resize(file);
+            } else {
+                var reader = new FileReader();
+                reader.onloadend = function(e) {
+                    resize(e.target.result);
+                };
+                reader.readAsDataURL(file);
+                //reader.readAsBinaryString(file);
+            }
 
         }
     };
     $[pluginName] = function(file, options) {
-        if (typeof file === 'string')
+        if (typeof file === 'string' && file.indexOf('data:') === -1)
             return methods[file](options);
         else
             new Plugin(file, options);

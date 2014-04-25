@@ -33,11 +33,26 @@
             this.getByteAt = function(iOffset) {
                 return data.charCodeAt(iOffset + dataOffset) & 0xFF;
             }
+
+            this.getBytesAt = function(iOffset, iLength) {
+                var aBytes = [];
+
+                for (var i = 0; i < iLength; i++) {
+                    aBytes[i] = data.charCodeAt((iOffset + i) + dataOffset) & 0xFF
+                }
+                ;
+
+                return aBytes;
+            }
         } else if (typeof strData == "unknown") {
             dataLength = iDataLength || IEBinary_getLength(data);
 
             this.getByteAt = function(iOffset) {
                 return IEBinary_getByteAt(data, iOffset + dataOffset);
+            }
+
+            this.getBytesAt = function(iOffset, iLength) {
+                return new VBArray(IEBinary_getBytesAt(data, iOffset + dataOffset, iLength)).toArray();
             }
         }
 
@@ -88,10 +103,13 @@
             else
                 return iULong;
         }
+
         this.getStringAt = function(iOffset, iLength) {
             var aStr = [];
-            for (var i = iOffset, j = 0; i < iOffset + iLength; i++, j++) {
-                aStr[j] = String.fromCharCode(this.getByteAt(i));
+
+            var aBytes = this.getBytesAt(iOffset, iLength);
+        for (var j = 0; j < iLength; j++) {
+            aStr[j] = String.fromCharCode(aBytes[j]);
             }
             return aStr.join("");
         }
@@ -112,10 +130,10 @@
 
         function createRequest() {
             var oHTTP = null;
-            if (window.XMLHttpRequest) {
-                oHTTP = new XMLHttpRequest();
-            } else if (window.ActiveXObject) {
+            if (window.ActiveXObject) {
                 oHTTP = new ActiveXObject("Microsoft.XMLHTTP");
+            } else if (window.XMLHttpRequest) {
+                oHTTP = new XMLHttpRequest();
             }
             return oHTTP;
         }
@@ -172,11 +190,10 @@
                 if (fncCallback) {
                     if (typeof(oHTTP.onload) != "undefined") {
                         oHTTP.onload = function() {
-
                             if (oHTTP.status == "200" || oHTTP.status == "206" || oHTTP.status == "0") {
-                                this.binaryResponse = new BinaryFile(this.responseText, iDataOffset, iDataLen);
-                                this.fileSize = iFileSize || this.getResponseHeader("Content-Length");
-                                fncCallback(this);
+                                oHTTP.binaryResponse = new BinaryFile(oHTTP.responseText, iDataOffset, iDataLen);
+                                oHTTP.fileSize = iFileSize || oHTTP.getResponseHeader("Content-Length");
+                                fncCallback(oHTTP);
                             } else {
                                 if (fncError)
                                     fncError();
@@ -187,9 +204,16 @@
                         oHTTP.onreadystatechange = function() {
                             if (oHTTP.readyState == 4) {
                                 if (oHTTP.status == "200" || oHTTP.status == "206" || oHTTP.status == "0") {
-                                    this.binaryResponse = new BinaryFile(oHTTP.responseBody, iDataOffset, iDataLen);
-                                    this.fileSize = iFileSize || this.getResponseHeader("Content-Length");
-                                    fncCallback(this);
+                                // IE6 craps if we try to extend the XHR object
+                                var oRes = {
+                                    status: oHTTP.status,
+                                    // IE needs responseBody, Chrome/Safari needs responseText
+                                    binaryResponse: new BinaryFile(
+                                            typeof oHTTP.responseBody == "unknown" ? oHTTP.responseBody : oHTTP.responseText, iDataOffset, iDataLen
+                                            ),
+                                    fileSize: iFileSize || oHTTP.getResponseHeader("Content-Length")
+                                };
+                                fncCallback(oRes);
                                 } else {
                                     if (fncError)
                                         fncError();
@@ -243,18 +267,26 @@
 
     }());
 
-
-    document.write(
+    if(navigator.userAgent.indexOf(' MSIE ') > -1){
+        document.write(
             "<script type='text/vbscript'>\r\n"
             + "Function IEBinary_getByteAt(strBinary, iOffset)\r\n"
-            + "	IEBinary_getByteAt = AscB(MidB(strBinary,iOffset+1,1))\r\n"
+            + "	IEBinary_getByteAt = AscB(MidB(strBinary, iOffset + 1, 1))\r\n"
+            + "End Function\r\n"
+            + "Function IEBinary_getBytesAt(strBinary, iOffset, iLength)\r\n"
+            + "  Dim aBytes()\r\n"
+            + "  ReDim aBytes(iLength - 1)\r\n"
+            + "  For i = 0 To iLength - 1\r\n"
+            + "   aBytes(i) = IEBinary_getByteAt(strBinary, iOffset + i)\r\n"
+            + "  Next\r\n"
+            + "  IEBinary_getBytesAt = aBytes\r\n"
             + "End Function\r\n"
             + "Function IEBinary_getLength(strBinary)\r\n"
             + "	IEBinary_getLength = LenB(strBinary)\r\n"
             + "End Function\r\n"
             + "</script>\r\n"
-            );
-
+        );
+    }
 
     var EXIF = {};
 
